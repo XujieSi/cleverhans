@@ -172,7 +172,7 @@ def predict(model_path, image_path):
     fgsm = FastGradientMethod(model, sess=sess)
     fgsm_params = {'eps' : 0.3,
                    'clip_min': 0., 'clip_max': 1.,
-                   'y_taget': one_hot_target}
+                   'y_target': one_hot_target}
     fgsm_adv = fgsm.generate_np(sample2, **fgsm_params)
     fgsm_ae = fgsm_adv[0]
 
