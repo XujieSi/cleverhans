@@ -13,7 +13,10 @@ import os
 
 import matplotlib.pyplot as plt
 
-from cleverhans.attacks import SaliencyMapMethod, CarliniWagnerL2
+from cleverhans.attacks import SaliencyMapMethod
+from cleverhans.attacks import CarliniWagnerL2
+from cleverhans.attacks import DeepFool
+from cleverhans.attacks import FastGradientMethod
 
 from cleverhans.utils import other_classes, set_log_level
 from cleverhans.utils_mnist import data_mnist
@@ -32,19 +35,24 @@ def visualize( stats, figure=None):
 
 
     K = len(stats)
+    Row,Col = 1,K
+    Row,Col = int((K+1)/2) ,2
+
+
     i = 0
-    for image,scores in stats:
+    for image,scores,desc in stats:
         i += 1
-        ax = figure.add_subplot(1, K, i)
-        #ax.axis('off')
+        ax = figure.add_subplot(Row, Col, i)
+        ax.axis('off')
 
         top_K = sorted(enumerate(scores), 
                 key = lambda val : val[1], 
                 reverse=True)
-
         display = [ "%d (%.6f%%)" % (x,y*100.0) for (x,y) in top_K ]
 
-        ax.set_xlabel(",\n".join(display[:3]) )
+        #ax.set_ylabel(",\n".join(display[:3]) )
+        #ax.set_ylabel( desc )
+        ax.text(30, 25, desc + '\n' + '\n'.join(display[:3]) )
 
         # If the image is 2D, then we have 1 color channel
         if len(image.shape) == 2:
@@ -119,48 +127,86 @@ def predict(model_path, image_path):
         sess.close()
         exit()
 
+    test_ind = 12
 
     # try JSMA 
-    jsma = SaliencyMapMethod(model, back='tf', sess=sess)
+    jsma = SaliencyMapMethod(model, sess=sess)
     jsma_params = {'theta': 1., 'gamma': 0.1,
                    'clip_min': 0., 'clip_max': 1.,
                    'y_target': None}
 
-    sample2 = X_test[9:10]
+    sample2 = X_test[test_ind: test_ind + 1]
     current_class = int( np.argmax(Y_test[0]) )
     target = 3
     one_hot_target = np.zeros((1, nb_classes), dtype=np.float32)
     one_hot_target[0, target] = 1
     jsma_params['y_target'] = one_hot_target
 
-    adv_x2 = jsma.generate_np(sample2, **jsma_params)
-    jsma_ae = adv_x2[0]
+    jsma_adv= jsma.generate_np(sample2, **jsma_params)
+    jsma_ae = jsma_adv[0]
+
 
 
     # try cw
-    cw = CarliniWagnerL2(model, back='tf', sess=sess)
+    cw = CarliniWagnerL2(model, sess=sess)
     cw_params = {'binary_search_steps': 1,
                  'max_iterations': 20,
                  'learning_rate': 0.1,
                  'batch_size': 1,
-                 'initial_const': 10}
-    cw_params['y_target'] = one_hot_target
-    adv = cw.generate_np(sample2, **cw_params)
-    cw_ae = adv[0]
+                 'initial_const': 10,
+                 'y_target': one_hot_target}
+    cw_adv = cw.generate_np(sample2, **cw_params)
+    cw_ae = cw_adv[0]
 
 
+    # try deepfool
+    deepfool = DeepFool(model, sess=sess)
+    df_params = {'max_iter': 20, 'nb_classes': 10,
+                 'clip_min': 0., 'clip_max': 1.,
+                 'overshoot': 0.1 }
+    df_adv = deepfool.generate_np(sample2, **df_params)
+    df_ae = df_adv[0]
+
+
+    # try fast gradient sign
+    fgsm = FastGradientMethod(model, sess=sess)
+    fgsm_params = {'eps' : 0.3,
+                   'clip_min': 0., 'clip_max': 1.,
+                   'y_taget': one_hot_target}
+    fgsm_adv = fgsm.generate_np(sample2, **fgsm_params)
+    fgsm_ae = fgsm_adv[0]
+
+
+
+    # visualize 
     sample = sample2[0]
     ss = [sample]
+    desc = [ 'original' ]
     noise = np.random.rand(img_rows,img_cols,1) / 2.0
     ss.append( sample + noise )
+    desc.append('original + noise')
     #ss.append( sample + (noise / 10.0) )
     #ss.append( sample + (noise / 100.0) )
 
     ss.append( jsma_ae )
+    desc.append('jsma')
     ss.append( jsma_ae + noise )
+    desc.append('jsma + noise')
     
     ss.append( cw_ae )
+    desc.append('cw')
     ss.append( cw_ae + noise )
+    desc.append('cw + noise')
+
+    ss.append( df_ae )
+    desc.append( 'deepfool' )
+    ss.append( df_ae + noise )
+    desc.append( 'deepfool + noise' )
+
+    ss.append( fgsm_ae )
+    desc.append( 'fgsm' )
+    ss.append( fgsm_ae + noise )
+    desc.append( 'fgsm + noise' )
 
 
     figure = None
@@ -171,10 +217,8 @@ def predict(model_path, image_path):
         shows= []
         for i in range(K):
             img = np.reshape( ss[i], (img_rows, img_cols))
-            shows.append( (img,res[i]) )
+            shows.append( (img,res[i], desc[i]) )
         figure = visualize(shows, figure)
-
-
 
 
     # close tf session
