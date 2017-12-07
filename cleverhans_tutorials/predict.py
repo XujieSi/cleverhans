@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+
 import numpy as np
 from six.moves import xrange
 import tensorflow as tf
@@ -12,7 +13,9 @@ import os
 
 import matplotlib.pyplot as plt
 
-from cleverhans.utils import set_log_level
+from cleverhans.attacks import SaliencyMapMethod, CarliniWagnerL2
+
+from cleverhans.utils import other_classes, set_log_level
 from cleverhans.utils_mnist import data_mnist
 from cleverhans_tutorials.tutorial_models import make_basic_cnn
 
@@ -71,7 +74,6 @@ def predict(model_path, image_path):
     test_start = 0
     test_end = 10000
     batch_size = 128
-    viz_enabled = True
 
     source_sample = 10
     nb_classes = 10
@@ -117,12 +119,48 @@ def predict(model_path, image_path):
         sess.close()
         exit()
 
-    sample = X_test[0]
+
+    # try JSMA 
+    jsma = SaliencyMapMethod(model, back='tf', sess=sess)
+    jsma_params = {'theta': 1., 'gamma': 0.1,
+                   'clip_min': 0., 'clip_max': 1.,
+                   'y_target': None}
+
+    sample2 = X_test[9:10]
+    current_class = int( np.argmax(Y_test[0]) )
+    target = 3
+    one_hot_target = np.zeros((1, nb_classes), dtype=np.float32)
+    one_hot_target[0, target] = 1
+    jsma_params['y_target'] = one_hot_target
+
+    adv_x2 = jsma.generate_np(sample2, **jsma_params)
+    jsma_ae = adv_x2[0]
+
+
+    # try cw
+    cw = CarliniWagnerL2(model, back='tf', sess=sess)
+    cw_params = {'binary_search_steps': 1,
+                 'max_iterations': 20,
+                 'learning_rate': 0.1,
+                 'batch_size': 1,
+                 'initial_const': 10}
+    cw_params['y_target'] = one_hot_target
+    adv = cw.generate_np(sample2, **cw_params)
+    cw_ae = adv[0]
+
+
+    sample = sample2[0]
     ss = [sample]
-    noise = np.random.rand(img_rows,img_cols,1) 
+    noise = np.random.rand(img_rows,img_cols,1) / 2.0
     ss.append( sample + noise )
-    ss.append( sample + (noise / 10.0) )
-    ss.append( sample + (noise / 100.0) )
+    #ss.append( sample + (noise / 10.0) )
+    #ss.append( sample + (noise / 100.0) )
+
+    ss.append( jsma_ae )
+    ss.append( jsma_ae + noise )
+    
+    ss.append( cw_ae )
+    ss.append( cw_ae + noise )
 
 
     figure = None
@@ -135,6 +173,8 @@ def predict(model_path, image_path):
             img = np.reshape( ss[i], (img_rows, img_cols))
             shows.append( (img,res[i]) )
         figure = visualize(shows, figure)
+
+
 
 
     # close tf session
