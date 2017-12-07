@@ -8,12 +8,13 @@ from six.moves import xrange
 import tensorflow as tf
 from tensorflow.python.platform import flags
 import logging
+import os
 
 from cleverhans.attacks import SaliencyMapMethod
 from cleverhans.utils import other_classes, set_log_level
 from cleverhans.utils import pair_visual, grid_visual, AccuracyReport
 from cleverhans.utils_mnist import data_mnist
-from cleverhans.utils_tf import model_train, model_eval, model_argmax
+from cleverhans.utils_tf import model_train, model_eval, model_argmax, tf_model_load
 from cleverhans.utils_keras import KerasModelWrapper, cnn_model
 from cleverhans_tutorials.tutorial_models import make_basic_cnn
 
@@ -23,7 +24,9 @@ FLAGS = flags.FLAGS
 def mnist_tutorial_jsma(train_start=0, train_end=60000, test_start=0,
                         test_end=10000, viz_enabled=True, nb_epochs=6,
                         batch_size=128, nb_classes=10, source_samples=10,
-                        learning_rate=0.001):
+                        learning_rate=0.001,
+                        model_path=os.path.join("models", "mnist")
+                        ):
     """
     MNIST tutorial for the Jacobian-based saliency map approach (JSMA)
     :param train_start: index of first training set example
@@ -36,6 +39,7 @@ def mnist_tutorial_jsma(train_start=0, train_end=60000, test_start=0,
     :param nb_classes: number of output classes
     :param source_samples: number of test inputs to attack
     :param learning_rate: learning rate for training
+    :param model_path: path to the model file
     :return: an AccuracyReport object
     """
     # Object used to keep track of (and return) key accuracies
@@ -62,8 +66,8 @@ def mnist_tutorial_jsma(train_start=0, train_end=60000, test_start=0,
                                                   test_end=test_end)
 
     # Define input TF placeholder
-    x = tf.placeholder(tf.float32, shape=(None, 28, 28, 1))
-    y = tf.placeholder(tf.float32, shape=(None, 10))
+    x = tf.placeholder(tf.float32, shape=(None, img_rows, img_cols, channels))
+    y = tf.placeholder(tf.float32, shape=(None, nb_classes))
 
     # Define TF model graph
     model = make_basic_cnn()
@@ -78,12 +82,21 @@ def mnist_tutorial_jsma(train_start=0, train_end=60000, test_start=0,
     train_params = {
         'nb_epochs': nb_epochs,
         'batch_size': batch_size,
-        'learning_rate': learning_rate
+        'learning_rate': learning_rate,
+        'train_dir': os.path.join(*os.path.split(model_path)[:-1]),
+        'filename': os.path.split(model_path)[-1]
     }
-    sess.run(tf.global_variables_initializer())
+
+    #sess.run(tf.global_variables_initializer())
     rng = np.random.RandomState([2017, 8, 30])
-    model_train(sess, x, y, preds, X_train, Y_train, args=train_params,
-                rng=rng)
+    #model_train(sess, x, y, preds, X_train, Y_train, args=train_params,
+    #            rng=rng)
+
+    if os.path.exists(model_path + ".meta"):
+        tf_model_load(sess, model_path)
+    else:
+        model_train(sess, x, y, preds, X_train, Y_train, args=train_params,
+                    save=os.path.exists("models"), rng=rng)
 
     # Evaluate the accuracy of the MNIST model on legitimate test examples
     eval_params = {'batch_size': batch_size}
@@ -133,6 +146,7 @@ def mnist_tutorial_jsma(train_start=0, train_end=60000, test_start=0,
         # Loop over all target classes
         for target in target_classes:
             print('Generating adv. example for target class %i' % target)
+            print('%d ====> %d\n' % (sample_ind+1, target) )
 
             # This call runs the Jacobian-based saliency map approach
             one_hot_target = np.zeros((1, nb_classes), dtype=np.float32)
