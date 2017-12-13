@@ -10,6 +10,7 @@ import tensorflow as tf
 from tensorflow.python.platform import flags
 import logging
 import os
+import pickle
 
 import matplotlib.pyplot as plt
 
@@ -139,7 +140,7 @@ def predict(model_path, image_path):
 
     figure = None
 
-    for test_ind in range(0,20):
+    for test_ind in range(0,2):
 
         sample2 = X_test[test_ind: test_ind + 1]
         current_class = int( np.argmax(Y_test[0]) )
@@ -215,17 +216,10 @@ def predict(model_path, image_path):
                 desc.append( '%s_noise-%d' % (name,idx) )
 
             with sess.as_default():
-                K = len(ss)
                 feed_dict = {x : ss}
                 res = sess.run(tf.nn.softmax(preds), feed_dict=feed_dict)
-                shows= []
-                for i in range(K):
-                    img = np.reshape( ss[i], (img_rows, img_cols))
-                    shows.append( (img,res[i], desc[i]) )
-                figure = visualize(shows, figure)
-
-            figure.savefig('imgs/test_%d_%s.png' % (test_ind,name) )
-
+                with open('pickle_dir/test_%d_%s.pkl'%(test_ind, name), 'wb') as fout:
+                    pickle.dump(res,fout)
 
     # close tf session
     sess.close()
