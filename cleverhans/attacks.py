@@ -838,6 +838,14 @@ class ElasticNetMethod(Attack):
         self.clip_max = clip_max
 
 
+class NoAttack(Attack):
+    def __init__(self, model, back='tf', sess=None):
+        super(NoAttack, self).__init__(model, back, sess)
+
+    def generate(self, x, **kwargs):
+        return x
+
+
 class DeepFool(Attack):
 
     """
