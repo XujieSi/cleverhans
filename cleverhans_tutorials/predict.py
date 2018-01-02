@@ -127,7 +127,7 @@ def predict(model_path, image_path):
         sess.close()
         exit()
 
-    test_ind = 12
+    test_ind = 12 #17
 
     # try JSMA 
     jsma = SaliencyMapMethod(model, sess=sess)
@@ -213,7 +213,7 @@ def predict(model_path, image_path):
     with sess.as_default():
         K = len(ss)
         feed_dict = {x : ss}
-        res = sess.run(tf.nn.softmax(preds), feed_dict=feed_dict)
+        res = sess.run(preds, feed_dict=feed_dict)
         shows= []
         for i in range(K):
             img = np.reshape( ss[i], (img_rows, img_cols))
