@@ -233,7 +233,7 @@ def demo(model_path, image_path):
     with sess.as_default():
         K = len(ss)
         feed_dict = {x : ss}
-        res = sess.run(tf.nn.softmax(preds), feed_dict=feed_dict)
+        res = sess.run(preds, feed_dict=feed_dict)
         shows= []
         for i in range(K):
             img = np.reshape( ss[i], (img_rows, img_cols))

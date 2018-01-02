@@ -217,7 +217,7 @@ def predict(model_path, image_path):
 
             with sess.as_default():
                 feed_dict = {x : ss}
-                res = sess.run(tf.nn.softmax(preds), feed_dict=feed_dict)
+                res = sess.run(preds, feed_dict=feed_dict)
                 with open('pickle_dir/test_%d_%s.pkl'%(test_ind, name), 'wb') as fout:
                     pickle.dump(res,fout)
 
